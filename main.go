@@ -2,32 +2,55 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
 )
 
-var message string
+//var message string
 
 type requestBody struct {
 	Message string `json:"message"`
 }
 
-func PostHandler(w http.ResponseWriter, r *http.Request) {
+func CreateMessage(w http.ResponseWriter, r *http.Request) {
 	var reqBody requestBody
-	json.NewDecoder(r.Body).Decode(&reqBody)
-	message = reqBody.Message
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	messages := Message{
+		Text: reqBody.Message,
+	}
+
+	if err := DB.Create(&messages).Error; err != nil {
+		http.Error(w, "Unable to save message", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(messages)
 }
 
-func GetHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "Hello, "+message)
+func GetMessage(w http.ResponseWriter, r *http.Request) {
+	var messages []Message
+	if err := DB.Find(&messages).Error; err != nil {
+		http.Error(w, "Unable to fetch messages", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(messages) // Возврат списка сообщений
 }
 
 func main() {
+
+	InitDB()
+
+	DB.AutoMigrate(&Message{})
+
 	router := mux.NewRouter()
 	// наше приложение будет слушать запросы на localhost:8080/api/hello
-	router.HandleFunc("/api/hello", GetHandler).Methods("GET")
-	router.HandleFunc("/api/hello", PostHandler).Methods("POST")
+	router.HandleFunc("/api/hello", GetMessage).Methods("GET")
+	router.HandleFunc("/api/hello", CreateMessage).Methods("POST")
 	http.ListenAndServe(":8080", router)
 }
