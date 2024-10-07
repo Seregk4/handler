@@ -42,6 +42,15 @@ func GetMessage(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(messages) // Возврат списка сообщений
 }
 
+func deleteMessage(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	if result := DB.Delete(&Message{}, vars["id"]); result.RowsAffected == 0 {
+		http.Error(w, "Message not found", http.StatusNotFound)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent) // 204 No Content
+}
+
 func main() {
 
 	InitDB()
